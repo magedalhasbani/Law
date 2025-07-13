@@ -9,6 +9,17 @@ import html
 import csv
 from io import BytesIO
 
+
+def standardize_word(word):
+    word = re.sub(r'[\u064B-\u0652]', '', word)  # إزالة التشكيل
+    word = re.sub('[إأآا]', 'ا', word)
+    word = re.sub('ة', 'ه', word)
+    word = re.sub('[ى]', 'ي', word)
+    word = re.sub('ؤ', 'و', word)
+    word = re.sub('ئ', 'ي', word)
+    return word
+
+
 # ----------------------------------------------------
 # إعدادات الصفحة الأساسية
 # ----------------------------------------------------
@@ -448,7 +459,8 @@ def run_main_app():
         if submitted:
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
-            kw_list = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
+            kw_list_raw = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
+            kw_list = [standardize_word(k) for k in kw_list_raw]
             search_by_article = bool(article_number_input.strip())
             normalized_kw_list = [normalize_arabic_text(kw) for kw in kw_list] if kw_list else []
             norm_article = normalize_arabic_numbers(article_number_input.strip()) if search_by_article else ""
@@ -489,7 +501,7 @@ def run_main_app():
                                                 add_result = True
                                                 break
                                 if add_result:
-                                    highlighted = highlight_keywords(full_text, kw_list + normalized_kw_list) if kw_list else full_text
+                                    highlighted = highlight_keywords(full_text, kw_list) if kw_list else full_text
                                     results.append({
                                         "law": law_name,
                                         "num": last_article,
@@ -519,7 +531,7 @@ def run_main_app():
                                         add_result = True
                                         break
                         if add_result:
-                            highlighted = highlight_keywords(full_text, kw_list + normalized_kw_list) if kw_list else full_text
+                            highlighted = highlight_keywords(full_text, kw_list) if kw_list else full_text
                             results.append({
                                 "law": law_name,
                                 "num": last_article,
