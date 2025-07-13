@@ -21,6 +21,10 @@ st.set_page_config(
 if "night_mode" not in st.session_state:
     st.session_state.night_mode = False
 
+# متغير حالة لإخفاء شاشة الترحيب بعد البحث
+if "hide_welcome" not in st.session_state:
+    st.session_state.hide_welcome = False
+
 st.markdown("""
 <style>
 textarea, input[type="text"], .stTextArea textarea, .stTextInput input {
@@ -393,6 +397,25 @@ def run_main_app():
             st.warning(f"📂 لا توجد ملفات قوانين في مجلد '{LAWS_DIR}/'.")
             return
 
+        # شاشة الترحيب تظهر فقط إذا لم يتم النقر على البحث
+        if not st.session_state.hide_welcome:
+            st.markdown("""
+                <div style="background: #263248; color: #fbeee0; border-radius: 18px; padding: 32px 14px; margin-bottom: 26px; direction: rtl; text-align:right; box-shadow: 0 4px 22px #26324822;">
+                    <h2 style="font-family:'Cairo',sans-serif; font-size:2.1em; margin-bottom:18px; color: #fff; text-align:right;">مرحباً بك في تطبيق القوانين اليمنية</h2>
+                    <p style="font-size:1.1em; margin-bottom:10px; color:#fbeee0;">نُرحب بك في هذا الصرح القانوني الذي يعكس فخامة المعرفة، وهيبة القانون.</p>
+                    <h3 style="font-size:1.2em; margin-bottom:10px; color:#ffe0b2; display:flex; align-items:center; gap:7px;">
+                        <img src="https://img.icons8.com/color/48/000000/scroll.png" width="32" style="vertical-align:middle;"/>
+                        مميزات التطبيق:
+                    </h3>
+                    <ul style="font-size:1.05em; color:#fbeee0; margin-bottom:13px;">
+                        <li>تصفح شامل لأحدث مواد القوانين اليمنية حتى عام 2025 ⚖️</li>
+                        <li>محرك بحث قانوني ذكي وسريع 🔍</li>
+                        <li>تصدير احترافي لنتائج البحث إلى Word <img src="https://img.icons8.com/ios-filled/24/ffffff/microsoft-word.png" style="vertical-align:middle;"/></li>
+                        <li>عمل كامل دون الحاجة للإنترنت 🌐</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+
         st.markdown("""
             <div style="direction: rtl; text-align: right;">
             <h3 style="display: flex; align-items: center; gap: 10px;">🔎 نموذج البحث</h3>
@@ -430,6 +453,7 @@ def run_main_app():
             st.session_state.search_done = False
 
         if submitted:
+            st.session_state.hide_welcome = True  # إخفاء شاشة الترحيب بعد بدء البحث
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
             kw_list = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
