@@ -489,7 +489,7 @@ def run_main_app():
                                                 add_result = True
                                                 break
                                 if add_result:
-                                    highlighted = highlight_keywords(full_text, kw_list, normalized_keywords=normalized_kw_list, exact_match=exact_match) if kw_list else full_text
+                                    highlighted = highlight_keywords(full_text, kw_list + normalized_kw_list) if kw_list else full_text
                                     results.append({
                                         "law": law_name,
                                         "num": last_article,
@@ -519,7 +519,7 @@ def run_main_app():
                                         add_result = True
                                         break
                         if add_result:
-                            highlighted = highlight_keywords(full_text, kw_list, normalized_keywords=normalized_kw_list, exact_match=exact_match) if kw_list else full_text
+                            highlighted = highlight_keywords(full_text, kw_list + normalized_kw_list) if kw_list else full_text
                             results.append({
                                 "law": law_name,
                                 "num": last_article,
