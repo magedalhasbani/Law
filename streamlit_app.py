@@ -109,65 +109,45 @@ def activate_app(code):
     return False
 
 # --------- تم تعديل هذه الدالة لتمييز المطابقة الجزئية بلون أصفر والتامة بلون برتقالي ---------
-def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
-    """
-    تمييز الكلمات المطابقة تمامًا بعلامة <mark>
-    وتمييز الكلمات المطابقة جزئيًا (كلمة ضمن كلمة أخرى) بعلامة <mark class="mark-soft">
-    المطابقة الكلية: برتقالي - المطابقة الجزئية: أصفر
-    """
+
+def highlight_keywords(text, keywords):
     if not keywords:
         return text
 
-    marked_spans = []
+    normalized_text = normalize_arabic_text(text)
 
-    # أولاً: المطابقات التامة
+    # إنشاء خريطة تربط بين النص المطبع ومواقع النص الأصلي
+    norm_map = []
+    for i, c in enumerate(text):
+        norm_c = normalize_arabic_text(c)
+        for _ in norm_c:
+            norm_map.append(i)
+
+    highlights = []
+    used = set()
+
     for kw in keywords:
-        if not kw:
-            continue
-        # اجلب جميع مواقع المطابقات التامة
-        for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
-            marked_spans.append((m.start(), m.end(), "exact"))
+        norm_kw = normalize_arabic_text(kw)
+        for match in re.finditer(re.escape(norm_kw), normalized_text):
+            start_norm = match.start()
+            end_norm = match.end()
+            if end_norm <= len(norm_map):
+                start_orig = norm_map[start_norm]
+                end_orig = norm_map[end_norm - 1] + 1
+                if (start_orig, end_orig) not in used:
+                    highlights.append((start_orig, end_orig))
+                    used.add((start_orig, end_orig))
 
-    # ثانيًا: المطابقات الجزئية (وليس التامة)
-    if normalized_keywords:
-        normalized_text = normalize_arabic_text(text)
-        for i, norm_kw in enumerate(normalized_keywords):
-            if not norm_kw:
-                continue
-            original_kw = keywords[i]
-            if not exact_match:
-                # اجلب جميع مواقع المطابقات الجزئية
-                for m in re.finditer(re.escape(original_kw), text, re.IGNORECASE):
-                    # تأكد ألا تتداخل مع أي مطابقة تامة
-                    overlap = False
-                    for s, e, t in marked_spans:
-                        if not (m.end() <= s or m.start() >= e):
-                            overlap = True
-                            break
-                    if not overlap:
-                        marked_spans.append((m.start(), m.end(), "partial"))
-
-    # دمج وتهيئة العلامات
-    if not marked_spans:
-        return text
-    # ترتيب حسب البداية
-    marked_spans.sort(key=lambda x: x[0])
-
+    highlights.sort()
     result = []
-    last_idx = 0
-    for s, e, t in marked_spans:
-        if s < last_idx:
-            continue  # تجاوز التداخلات
-        # أضف ما قبل المطابقة
-        result.append(text[last_idx:s])
-        span_text = text[s:e]
-        if t == "exact":
-            result.append(f"<mark>{span_text}</mark>")  # برتقالي
-        else:
-            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")  # أصفر
-        last_idx = e
-    result.append(text[last_idx:])
-    return "".join(result)
+    last = 0
+    for start, end in highlights:
+        result.append(text[last:start])
+        result.append(f'<mark>{text[start:end]}</mark>')
+        last = end
+    result.append(text[last:])
+    return ''.join(result)
+
 
 def export_results_to_word(results, filename="نتائج_البحث.docx"):
     from docx import Document
