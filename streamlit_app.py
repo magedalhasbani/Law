@@ -423,8 +423,8 @@ def run_main_app():
             search_btn_col = st.columns([1, 2, 12])
             with search_btn_col[2]:
                 submitted = st.form_submit_button("🔍 بدء البحث", use_container_width=True)
-            st.session_state.hide_trial = True
-            st.session_state.hide_trial = True, use_container_width=True)
+            if submitted:
+                st.session_state.hide_trial = True
 
         if "results" not in st.session_state:
             st.session_state.results = []
@@ -645,11 +645,9 @@ def render_header():
     else:
         st.error("⚠️ ملف 'header.html' غير موجود في مجلد المشروع.")
 
-
+def main():
     if "hide_trial" not in st.session_state:
         st.session_state.hide_trial = False
-
-def main():
     render_header()
     device_id = get_device_id()
     trial_start = get_trial_start(device_id)
@@ -666,7 +664,7 @@ def main():
             st.error("❌ انتهت مدة التجربة المجانية لهذا الجهاز. يرجى تفعيل التطبيق للاستمرار في الاستخدام.")
     
     with st.container(border=True):
-        if trial_start is None and not st.session_state.get('hide_trial', False):
+        if trial_start is None and not st.session_state.hide_trial:
             if st.button("🚀 بدء النسخة المجانية", key="start_trial_button", use_container_width=True):
                 register_trial(device_id)
                 st.rerun()
