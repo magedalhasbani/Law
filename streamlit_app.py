@@ -556,7 +556,9 @@ def run_main_app():
                 st.warning("لا توجد نتائج لتصديرها.")
             st.markdown("---")
             if results:
-                
+                st.markdown('<div style="direction: rtl; text-align: right;">فلترة النتائج حسب القانون:</div>', unsafe_allow_html=True)
+                selected_law_filter = st.selectbox("", ["الكل"] + unique_laws, key="results_law_filter", label_visibility="collapsed")
+                filtered = results if selected_law_filter == "الكل" else [r for r in results if r["law"] == selected_law_filter]
                 for i, r in enumerate(filtered):
                     with st.expander(f"📚 المادة ({r['num']}) من قانون {r['law']}", expanded=True):
                         st.markdown(f'''
