@@ -422,7 +422,8 @@ def run_main_app():
                 exact_match = st.checkbox("تطابق تام للكلمة", key="exact_match_checkbox")
             search_btn_col = st.columns([1, 2, 12])
             with search_btn_col[2]:
-                submitted = st.form_submit_button("🔍 بدء البحث")
+                submitted = st.form_submit_button("🔍 بدء البحث", use_container_width=True)
+            st.session_state.hide_trial = True
             st.session_state.hide_trial = True, use_container_width=True)
 
         if "results" not in st.session_state:
