@@ -110,42 +110,43 @@ def activate_app(code):
 
 # --------- تم تعديل هذه الدالة لتمييز المطابقة الجزئية بلون أصفر والتامة بلون برتقالي ---------
 
+
 def highlight_keywords(text, keywords):
     if not keywords:
         return text
 
     normalized_text = normalize_arabic_text(text)
 
-    # إنشاء خريطة تربط بين النص المطبع ومواقع النص الأصلي
-    norm_map = []
+    # بناء خريطة تربط كل حرف مطبع بحرفه الأصلي
+    norm_to_orig_map = []
     for i, c in enumerate(text):
-        norm_c = normalize_arabic_text(c)
-        for _ in norm_c:
-            norm_map.append(i)
+        normalized_c = normalize_arabic_text(c)
+        for _ in normalized_c:
+            norm_to_orig_map.append(i)
 
     highlights = []
     used = set()
 
-    for kw in keywords:
-        norm_kw = normalize_arabic_text(kw)
-        for match in re.finditer(re.escape(norm_kw), normalized_text):
+    for word in keywords:
+        norm_word = normalize_arabic_text(word)
+        for match in re.finditer(re.escape(norm_word), normalized_text, re.IGNORECASE):
             start_norm = match.start()
             end_norm = match.end()
-            if end_norm <= len(norm_map):
-                start_orig = norm_map[start_norm]
-                end_orig = norm_map[end_norm - 1] + 1
+            if end_norm <= len(norm_to_orig_map):
+                start_orig = norm_to_orig_map[start_norm]
+                end_orig = norm_to_orig_map[end_norm - 1] + 1
                 if (start_orig, end_orig) not in used:
                     highlights.append((start_orig, end_orig))
                     used.add((start_orig, end_orig))
 
     highlights.sort()
     result = []
-    last = 0
+    last_index = 0
     for start, end in highlights:
-        result.append(text[last:start])
+        result.append(text[last_index:start])
         result.append(f'<mark>{text[start:end]}</mark>')
-        last = end
-    result.append(text[last:])
+        last_index = end
+    result.append(text[last_index:])
     return ''.join(result)
 
 
