@@ -21,10 +21,6 @@ st.set_page_config(
 if "night_mode" not in st.session_state:
     st.session_state.night_mode = False
 
-# متغير حالة لإظهار/إخفاء مربع الترحيب
-if "show_welcome" not in st.session_state:
-    st.session_state.show_welcome = True
-
 st.markdown("""
 <style>
 textarea, input[type="text"], .stTextArea textarea, .stTextInput input {
@@ -102,14 +98,24 @@ def activate_app(code):
     return False
 
 def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
+    """
+    تمييز الكلمات المطابقة تمامًا بعلامة <mark>
+    وتمييز الكلمات المطابقة جزئيًا (كلمة ضمن كلمة أخرى) بعلامة <mark class="mark-soft">
+    المطابقة الكلية: برتقالي - المطابقة الجزئية: أصفر
+    """
     if not keywords:
         return text
+
     marked_spans = []
+
+    # أولاً: المطابقات التامة
     for kw in keywords:
         if not kw:
             continue
         for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
             marked_spans.append((m.start(), m.end(), "exact"))
+
+    # ثانيًا: المطابقات الجزئية (وليس التامة)
     if normalized_keywords:
         normalized_text = normalize_arabic_text(text)
         for i, norm_kw in enumerate(normalized_keywords):
@@ -125,20 +131,22 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
                             break
                     if not overlap:
                         marked_spans.append((m.start(), m.end(), "partial"))
+
     if not marked_spans:
         return text
     marked_spans.sort(key=lambda x: x[0])
+
     result = []
     last_idx = 0
     for s, e, t in marked_spans:
         if s < last_idx:
-            continue
+            continue  # تجاوز التداخلات
         result.append(text[last_idx:s])
         span_text = text[s:e]
         if t == "exact":
-            result.append(f"<mark>{span_text}</mark>")
+            result.append(f"<mark>{span_text}</mark>")  # برتقالي
         else:
-            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")
+            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")  # أصفر
         last_idx = e
     result.append(text[last_idx:])
     return "".join(result)
@@ -385,25 +393,6 @@ def run_main_app():
             st.warning(f"📂 لا توجد ملفات قوانين في مجلد '{LAWS_DIR}/'.")
             return
 
-        # مربع الترحيب يظهر فقط إذا كان show_welcome = True
-        if st.session_state.show_welcome:
-            with st.container(border=True):
-                st.markdown("""
-                <div style="background:#233046;border-radius:18px;border:2px solid #eee;padding:30px 20px;margin-bottom:25px;direction:rtl;text-align:right;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
-                    <h2 style="color:#fff;margin-bottom:16px;text-align:center">مرحباً بك في تطبيق القوانين اليمنية</h2>
-                    <p style="color:#f1f1f1;font-size:18px;text-align:center">
-                        نُرحب بك في هذا الصرح القانوني الذي يعكس فخامة المعرفة، وهيبة القانون.
-                    </p>
-                    <h3 style="color:#ffe082;margin-top:32px;">📜 مميزات التطبيق:</h3>
-                    <ul style="color:#fff;font-size:17px;line-height:2;">
-                        <li>⚖️ تصفح شامل لأحدث مواد القوانين اليمنية حتى عام 2025</li>
-                        <li>🔎 محرك بحث قانوني ذكي وسريع</li>
-                        <li>📄 تصدير احترافي لنتائج البحث إلى Word</li>
-                        <li>🌐 عمل كامل دون الحاجة للإنترنت</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-
         st.markdown("""
             <div style="direction: rtl; text-align: right;">
             <h3 style="display: flex; align-items: center; gap: 10px;">🔎 نموذج البحث</h3>
@@ -433,16 +422,15 @@ def run_main_app():
                 exact_match = st.checkbox("تطابق تام للكلمة", key="exact_match_checkbox")
             search_btn_col = st.columns([1, 2, 12])
             with search_btn_col[2]:
-                submitted = st.form_submit_button("🔍 بدء البحث", use_container_width=True)
+                submitted = st.form_submit_button("🔍 بدء البحث")
+            st.session_state.hide_trial = True, use_container_width=True)
 
         if "results" not in st.session_state:
             st.session_state.results = []
         if "search_done" not in st.session_state:
             st.session_state.search_done = False
 
-        # عند النقر على زر البحث، إخفاء مربع الترحيب
         if submitted:
-            st.session_state.show_welcome = False
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
             kw_list = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
@@ -552,6 +540,7 @@ def run_main_app():
             else:
                 st.warning("لا توجد نتائج لتصديرها.")
             st.markdown("---")
+            # تم إزالة فلترة النتائج حسب القانون، جميع النتائج تظهر مباشرة!
             if results:
                 for i, r in enumerate(results):
                     with st.expander(f"📚 المادة ({r['num']}) من قانون {r['law']}", expanded=True):
@@ -655,6 +644,10 @@ def render_header():
     else:
         st.error("⚠️ ملف 'header.html' غير موجود في مجلد المشروع.")
 
+
+    if "hide_trial" not in st.session_state:
+        st.session_state.hide_trial = False
+
 def main():
     render_header()
     device_id = get_device_id()
@@ -672,7 +665,7 @@ def main():
             st.error("❌ انتهت مدة التجربة المجانية لهذا الجهاز. يرجى تفعيل التطبيق للاستمرار في الاستخدام.")
     
     with st.container(border=True):
-        if trial_start is None:
+        if trial_start is None and not st.session_state.get('hide_trial', False):
             if st.button("🚀 بدء النسخة المجانية", key="start_trial_button", use_container_width=True):
                 register_trial(device_id)
                 st.rerun()
