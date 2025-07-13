@@ -97,44 +97,11 @@ def activate_app(code):
         return True
     return False
 
-# ---------------- تحديثات البحث والتمييز العربي الشامل ----------------
-
-def normalize_arabic_text(text):
-    # التطبيع: إزالة التشكيل والهمزات وتوحيد الألفات وتحويل جميع أشكال ياء/ألف مقصورة/تاء مربوطة
-    text = re.sub(r'(.)\1{2,}', r'\1', text)
-    text = re.sub(r'[\u064B-\u0652]', '', text)  # Remove tashkeel (diacritics)
-    text = re.sub('[إأآا]', 'ا', text)
-    text = re.sub('[ىي]', 'ي', text)
-    text = re.sub('[ة]', 'ه', text)
-    text = re.sub('ؤ', 'و', text)
-    text = re.sub('ئ', 'ي', text)
-    text = re.sub(r'[^\w\s]', '', text)
-    text = re.sub('\s+', ' ', text)
-    return text.strip()
-
-def normalize_keyword_for_regex(kw):
-    """توليد تعبير منتظم يطابق جميع أشكال الكلمة من حيث الألف والهمزات والتشكيل"""
-    # ١- استبدل جميع أشكال الألف بحرف مجموعة [اأإآ]
-    # ٢- استبدل جميع أشكال ياء/ألف مقصورة/تاء مربوطة ب [يىةه]
-    # ٣- اجعل التنوين/التشكيل اختيارية (؟) بين الحروف
-    # ٤- تجاهل الفروق بين الهاء المربوطة والياء/الألف المقصورة
-    kw = re.sub('[إأآا]', '[اأإآ]', kw)
-    kw = re.sub('[ىي]', '[ىيى]', kw)
-    kw = re.sub('[ةه]', '[هة]', kw)
-    kw = re.sub('ؤ', '[ؤو]', kw)
-    kw = re.sub('ئ', '[ئي]', kw)
-    # إضافة تجاهل التشكيل (بين كل حرفين ممكن يوجد تشكيل)
-    # الحروف العربية (بسيطة فقط)
-    letters = '[\u0621-\u064A]'
-    # أضف (?:[\u064B-\u0652]*) بعد كل حرف (لإزالة التشكيل)
-    chars = []
-    for c in kw:
-        chars.append(re.escape(c) + r'(?:[\u064B-\u0652]*)')
-    return ''.join(chars)
-
+# --------- تم تعديل هذه الدالة لتمييز المطابقة الجزئية بلون أصفر والتامة بلون برتقالي ---------
 def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
     """
-    تمييز الكلمات المطابقة (مع أو بدون همزات/تشكيل/تنوين/ألف/ياء/ة) بعلامة <mark>
+    تمييز الكلمات المطابقة تمامًا بعلامة <mark>
+    وتمييز الكلمات المطابقة جزئيًا (كلمة ضمن كلمة أخرى) بعلامة <mark class="mark-soft">
     المطابقة الكلية: برتقالي - المطابقة الجزئية: أصفر
     """
     if not keywords:
@@ -142,39 +109,36 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
 
     marked_spans = []
 
-    # بناء قائمة التعبيرات المنتظمة المكافئة للكلمات للبحث
-    regex_list = []
+    # أولاً: المطابقات التامة
     for kw in keywords:
         if not kw:
             continue
-        # توليد regex مرن للكلمة
-        flexible_kw = normalize_keyword_for_regex(kw)
-        # مطابقة تامة (كلمة مستقلة - حدود كلمة)
-        exact_re = re.compile(r'(?<!\w)'+flexible_kw+r'(?!\w)', re.IGNORECASE | re.UNICODE)
-        # مطابقة جزئية (أي مكان)
-        partial_re = re.compile(flexible_kw, re.IGNORECASE | re.UNICODE)
-        regex_list.append((exact_re, partial_re))
-
-    # أولاً: المطابقات التامة (برتقالي)
-    for idx, (exact_re, _) in enumerate(regex_list):
-        for m in exact_re.finditer(text):
+        # اجلب جميع مواقع المطابقات التامة
+        for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
             marked_spans.append((m.start(), m.end(), "exact"))
 
-    # ثانيًا: المطابقات الجزئية (أصفر)
-    for idx, (_, partial_re) in enumerate(regex_list):
-        for m in partial_re.finditer(text):
-            # تأكد ألا تتداخل مع أي مطابقة تامة
-            overlap = False
-            for s, e, t in marked_spans:
-                if not (m.end() <= s or m.start() >= e):
-                    overlap = True
-                    break
-            if not overlap:
-                marked_spans.append((m.start(), m.end(), "partial"))
+    # ثانيًا: المطابقات الجزئية (وليس التامة)
+    if normalized_keywords:
+        normalized_text = normalize_arabic_text(text)
+        for i, norm_kw in enumerate(normalized_keywords):
+            if not norm_kw:
+                continue
+            original_kw = keywords[i]
+            if not exact_match:
+                # اجلب جميع مواقع المطابقات الجزئية
+                for m in re.finditer(re.escape(original_kw), text, re.IGNORECASE):
+                    # تأكد ألا تتداخل مع أي مطابقة تامة
+                    overlap = False
+                    for s, e, t in marked_spans:
+                        if not (m.end() <= s or m.start() >= e):
+                            overlap = True
+                            break
+                    if not overlap:
+                        marked_spans.append((m.start(), m.end(), "partial"))
 
+    # دمج وتهيئة العلامات
     if not marked_spans:
         return text
-
     # ترتيب حسب البداية
     marked_spans.sort(key=lambda x: x[0])
 
@@ -183,12 +147,13 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
     for s, e, t in marked_spans:
         if s < last_idx:
             continue  # تجاوز التداخلات
+        # أضف ما قبل المطابقة
         result.append(text[last_idx:s])
         span_text = text[s:e]
         if t == "exact":
-            result.append(f"<mark>{span_text}</mark>")
+            result.append(f"<mark>{span_text}</mark>")  # برتقالي
         else:
-            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")
+            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")  # أصفر
         last_idx = e
     result.append(text[last_idx:])
     return "".join(result)
@@ -214,6 +179,18 @@ def normalize_arabic_numbers(text):
     arabic_to_english = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
     return text.translate(arabic_to_english)
 
+def normalize_arabic_text(text):
+    text = re.sub(r'(.)\1{2,}', r'\1', text)
+    text = re.sub(r'[\u064B-\u0652]', '', text)
+    text = re.sub('[إأآا]', 'ا', text)
+    text = re.sub('[ىي]', 'ي', text)
+    text = re.sub('[ة]', 'ه', text)
+    text = re.sub('ؤ', 'و', text)
+    text = re.sub('ئ', 'ي', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub('\s+', ' ', text)
+    return text.strip()
+
 def render_law_file_viewer(files):
     st.markdown("<h4 style='text-align:center;'>اختر القانون الذي تريد تصفحه بالكامل:</h4>", unsafe_allow_html=True)
     law_sel = st.selectbox("اختر القانون:", files, key="law_select_for_view")
@@ -225,6 +202,7 @@ def render_law_file_viewer(files):
             txt = para.text.strip()
             if txt:
                 law_text += txt + "\n\n"
+        # --- تعديل وضوح النص لمربع القانون الكامل ---
         st.markdown("""
         <style>
         textarea[disabled], .stTextArea textarea[disabled] {
@@ -237,14 +215,18 @@ def render_law_file_viewer(files):
             font-weight: bold !important;
             letter-spacing: 0.3px;
         }
+        /* إخفاء زر تحديد الكل (select-all) في كروم/إيدج */
         textarea::-webkit-textfield-decoration-container {
             display: none !important;
         }
+        /* إخفاء أزرار التحديد السريع */
         textarea::-webkit-scrollbar-button,
         textarea::-webkit-scrollbar-corner {
             display: none !important;
         }
+        /* تخصيص لون التضليل اليدوي */
         textarea::selection { background: #b3d7ff; }
+        /* تضليل فايرفوكس */
         textarea[readonly]::-moz-selection,
         textarea[disabled]::-moz-selection {
             background: #b3d7ff;
@@ -276,9 +258,12 @@ def run_main_app():
                 unsafe_allow_html=True,
             )
 
+    # التبويبات
     tabs = st.tabs(["🔎 البحث في القوانين", "📄 عرض القانون الكامل"])
 
+    # تبويب البحث
     with tabs[0]:
+        # CSS للوضع الليلي والنهاري + نتائج البحث + تمييز التطابق غير التام
         if st.session_state.night_mode:
             st.markdown("""
             <style>
@@ -358,6 +343,7 @@ def run_main_app():
             </style>
             """, unsafe_allow_html=True)
 
+        # أزرار التمرير
         components.html("""
         <style>
         .scroll-btn {
@@ -493,16 +479,13 @@ def run_main_app():
                                     for idx, kw in enumerate(normalized_kw_list):
                                         if not kw:
                                             continue
-                                        # البحث في النص المطبع وليس النص الأصلي
-                                        flexible_kw = normalize_keyword_for_regex(kw_list[idx])
-                                        pattern = re.compile(flexible_kw, re.IGNORECASE | re.UNICODE)
                                         if exact_match:
-                                            pattern_exact = re.compile(r'(?<!\w)'+flexible_kw+r'(?!\w)', re.IGNORECASE | re.UNICODE)
-                                            if re.search(pattern_exact, full_text):
+                                            pattern = r'(?<!\w)'+re.escape(kw)+r'(?!\w)'
+                                            if re.search(pattern, simple_full_text):
                                                 add_result = True
                                                 break
                                         else:
-                                            if re.search(pattern, full_text):
+                                            if kw in simple_full_text:
                                                 add_result = True
                                                 break
                                 if add_result:
@@ -526,15 +509,13 @@ def run_main_app():
                             for idx, kw in enumerate(normalized_kw_list):
                                 if not kw:
                                     continue
-                                flexible_kw = normalize_keyword_for_regex(kw_list[idx])
-                                pattern = re.compile(flexible_kw, re.IGNORECASE | re.UNICODE)
                                 if exact_match:
-                                    pattern_exact = re.compile(r'(?<!\w)'+flexible_kw+r'(?!\w)', re.IGNORECASE | re.UNICODE)
-                                    if re.search(pattern_exact, full_text):
+                                    pattern = r'(?<!\w)'+re.escape(kw)+r'(?!\w)'
+                                    if re.search(pattern, simple_full_text):
                                         add_result = True
                                         break
                                 else:
-                                    if re.search(pattern, full_text):
+                                    if kw in simple_full_text:
                                         add_result = True
                                         break
                         if add_result:
@@ -662,6 +643,7 @@ def run_main_app():
             else:
                 st.info("لا توجد نتائج لعرضها حاليًا. يرجى إجراء بحث جديد.")
 
+    # تبويب عرض القانون الكامل
     with tabs[1]:
         if not os.path.exists(LAWS_DIR):
             st.error(f"⚠️ مجلد '{LAWS_DIR}/' غير موجود. يرجى التأكد من وجود ملفات القوانين.")
