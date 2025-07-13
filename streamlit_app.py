@@ -15,15 +15,11 @@ from io import BytesIO
 st.set_page_config(
     page_title="القوانين اليمنية بآخر تعديلاتها حتى عام 2025م",
     layout="wide",
-    initial_sidebar_state="collapsed"  # لإخفاء القائمة الجانبية عند بدء التطبيق
+    initial_sidebar_state="expanded"
 )
 
 if "night_mode" not in st.session_state:
     st.session_state.night_mode = False
-
-# متغير حالة لإخفاء شاشة الترحيب بعد البحث
-if "hide_welcome" not in st.session_state:
-    st.session_state.hide_welcome = False
 
 st.markdown("""
 <style>
@@ -101,6 +97,7 @@ def activate_app(code):
         return True
     return False
 
+# --------- تم تعديل هذه الدالة لتمييز المطابقة الجزئية بلون أصفر والتامة بلون برتقالي ---------
 def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
     """
     تمييز الكلمات المطابقة تمامًا بعلامة <mark>
@@ -116,6 +113,7 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
     for kw in keywords:
         if not kw:
             continue
+        # اجلب جميع مواقع المطابقات التامة
         for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
             marked_spans.append((m.start(), m.end(), "exact"))
 
@@ -127,7 +125,9 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
                 continue
             original_kw = keywords[i]
             if not exact_match:
+                # اجلب جميع مواقع المطابقات الجزئية
                 for m in re.finditer(re.escape(original_kw), text, re.IGNORECASE):
+                    # تأكد ألا تتداخل مع أي مطابقة تامة
                     overlap = False
                     for s, e, t in marked_spans:
                         if not (m.end() <= s or m.start() >= e):
@@ -136,8 +136,10 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
                     if not overlap:
                         marked_spans.append((m.start(), m.end(), "partial"))
 
+    # دمج وتهيئة العلامات
     if not marked_spans:
         return text
+    # ترتيب حسب البداية
     marked_spans.sort(key=lambda x: x[0])
 
     result = []
@@ -145,6 +147,7 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
     for s, e, t in marked_spans:
         if s < last_idx:
             continue  # تجاوز التداخلات
+        # أضف ما قبل المطابقة
         result.append(text[last_idx:s])
         span_text = text[s:e]
         if t == "exact":
@@ -166,7 +169,7 @@ def export_results_to_word(results, filename="نتائج_البحث.docx"):
             document.add_heading(f"القانون: {r['law']} - المادة: {r['num']}", level=2)
             document.add_paragraph(r['plain'])
             if i < len(results) - 1:
-                document.add_page_break()
+                document.add_page_break() 
     buffer = BytesIO()
     document.save(buffer)
     buffer.seek(0)
@@ -199,6 +202,7 @@ def render_law_file_viewer(files):
             txt = para.text.strip()
             if txt:
                 law_text += txt + "\n\n"
+        # --- تعديل وضوح النص لمربع القانون الكامل ---
         st.markdown("""
         <style>
         textarea[disabled], .stTextArea textarea[disabled] {
@@ -211,14 +215,18 @@ def render_law_file_viewer(files):
             font-weight: bold !important;
             letter-spacing: 0.3px;
         }
+        /* إخفاء زر تحديد الكل (select-all) في كروم/إيدج */
         textarea::-webkit-textfield-decoration-container {
             display: none !important;
         }
+        /* إخفاء أزرار التحديد السريع */
         textarea::-webkit-scrollbar-button,
         textarea::-webkit-scrollbar-corner {
             display: none !important;
         }
+        /* تخصيص لون التضليل اليدوي */
         textarea::selection { background: #b3d7ff; }
+        /* تضليل فايرفوكس */
         textarea[readonly]::-moz-selection,
         textarea[disabled]::-moz-selection {
             background: #b3d7ff;
@@ -250,9 +258,12 @@ def run_main_app():
                 unsafe_allow_html=True,
             )
 
+    # التبويبات
     tabs = st.tabs(["🔎 البحث في القوانين", "📄 عرض القانون الكامل"])
 
+    # تبويب البحث
     with tabs[0]:
+        # CSS للوضع الليلي والنهاري + نتائج البحث + تمييز التطابق غير التام
         if st.session_state.night_mode:
             st.markdown("""
             <style>
@@ -332,6 +343,7 @@ def run_main_app():
             </style>
             """, unsafe_allow_html=True)
 
+        # أزرار التمرير
         components.html("""
         <style>
         .scroll-btn {
@@ -397,25 +409,6 @@ def run_main_app():
             st.warning(f"📂 لا توجد ملفات قوانين في مجلد '{LAWS_DIR}/'.")
             return
 
-        # شاشة الترحيب تظهر فقط إذا لم يتم النقر على البحث
-        if not st.session_state.hide_welcome:
-            st.markdown("""
-                <div style="background: #263248; color: #fbeee0; border-radius: 18px; padding: 32px 14px; margin-bottom: 26px; direction: rtl; text-align:right; box-shadow: 0 4px 22px #26324822;">
-                    <h2 style="font-family:'Cairo',sans-serif; font-size:2.1em; margin-bottom:18px; color: #fff; text-align:right;">مرحباً بك في تطبيق القوانين اليمنية</h2>
-                    <p style="font-size:1.1em; margin-bottom:10px; color:#fbeee0;">نُرحب بك في هذا الصرح القانوني الذي يعكس فخامة المعرفة، وهيبة القانون.</p>
-                    <h3 style="font-size:1.2em; margin-bottom:10px; color:#ffe0b2; display:flex; align-items:center; gap:7px;">
-                        <img src="https://img.icons8.com/color/48/000000/scroll.png" width="32" style="vertical-align:middle;"/>
-                        مميزات التطبيق:
-                    </h3>
-                    <ul style="font-size:1.05em; color:#fbeee0; margin-bottom:13px;">
-                        <li>تصفح شامل لأحدث مواد القوانين اليمنية حتى عام 2025 ⚖️</li>
-                        <li>محرك بحث قانوني ذكي وسريع 🔍</li>
-                        <li>تصدير احترافي لنتائج البحث إلى Word <img src="https://img.icons8.com/ios-filled/24/ffffff/microsoft-word.png" style="vertical-align:middle;"/></li>
-                        <li>عمل كامل دون الحاجة للإنترنت 🌐</li>
-                    </ul>
-                </div>
-            """, unsafe_allow_html=True)
-
         st.markdown("""
             <div style="direction: rtl; text-align: right;">
             <h3 style="display: flex; align-items: center; gap: 10px;">🔎 نموذج البحث</h3>
@@ -453,7 +446,6 @@ def run_main_app():
             st.session_state.search_done = False
 
         if submitted:
-            st.session_state.hide_welcome = True  # إخفاء شاشة الترحيب بعد بدء البحث
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
             kw_list = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
@@ -563,9 +555,11 @@ def run_main_app():
             else:
                 st.warning("لا توجد نتائج لتصديرها.")
             st.markdown("---")
-            # تم إزالة فلترة النتائج حسب القانون، جميع النتائج تظهر مباشرة!
             if results:
-                for i, r in enumerate(results):
+                st.markdown('<div style="direction: rtl; text-align: right;">فلترة النتائج حسب القانون:</div>', unsafe_allow_html=True)
+                selected_law_filter = st.selectbox("", ["الكل"] + unique_laws, key="results_law_filter", label_visibility="collapsed")
+                filtered = results if selected_law_filter == "الكل" else [r for r in results if r["law"] == selected_law_filter]
+                for i, r in enumerate(filtered):
                     with st.expander(f"📚 المادة ({r['num']}) من قانون {r['law']}", expanded=True):
                         st.markdown(f'''
                         <div class="result-box-night">
@@ -649,6 +643,7 @@ def run_main_app():
             else:
                 st.info("لا توجد نتائج لعرضها حاليًا. يرجى إجراء بحث جديد.")
 
+    # تبويب عرض القانون الكامل
     with tabs[1]:
         if not os.path.exists(LAWS_DIR):
             st.error(f"⚠️ مجلد '{LAWS_DIR}/' غير موجود. يرجى التأكد من وجود ملفات القوانين.")
