@@ -9,17 +9,6 @@ import html
 import csv
 from io import BytesIO
 
-
-def standardize_word(word):
-    word = re.sub(r'[\u064B-\u0652]', '', word)  # إزالة التشكيل
-    word = re.sub('[إأآا]', 'ا', word)
-    word = re.sub('ة', 'ه', word)
-    word = re.sub('[ى]', 'ي', word)
-    word = re.sub('ؤ', 'و', word)
-    word = re.sub('ئ', 'ي', word)
-    return word
-
-
 # ----------------------------------------------------
 # إعدادات الصفحة الأساسية
 # ----------------------------------------------------
@@ -109,46 +98,65 @@ def activate_app(code):
     return False
 
 # --------- تم تعديل هذه الدالة لتمييز المطابقة الجزئية بلون أصفر والتامة بلون برتقالي ---------
-
-
-def highlight_keywords(text, keywords):
+def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
+    """
+    تمييز الكلمات المطابقة تمامًا بعلامة <mark>
+    وتمييز الكلمات المطابقة جزئيًا (كلمة ضمن كلمة أخرى) بعلامة <mark class="mark-soft">
+    المطابقة الكلية: برتقالي - المطابقة الجزئية: أصفر
+    """
     if not keywords:
         return text
 
-    normalized_text = normalize_arabic_text(text)
+    marked_spans = []
 
-    # بناء خريطة تربط كل حرف مطبع بحرفه الأصلي
-    norm_to_orig_map = []
-    for i, c in enumerate(text):
-        normalized_c = normalize_arabic_text(c)
-        for _ in normalized_c:
-            norm_to_orig_map.append(i)
+    # أولاً: المطابقات التامة
+    for kw in keywords:
+        if not kw:
+            continue
+        # اجلب جميع مواقع المطابقات التامة
+        for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
+            marked_spans.append((m.start(), m.end(), "exact"))
 
-    highlights = []
-    used = set()
+    # ثانيًا: المطابقات الجزئية (وليس التامة)
+    if normalized_keywords:
+        normalized_text = normalize_arabic_text(text)
+        for i, norm_kw in enumerate(normalized_keywords):
+            if not norm_kw:
+                continue
+            original_kw = keywords[i]
+            if not exact_match:
+                # اجلب جميع مواقع المطابقات الجزئية
+                for m in re.finditer(re.escape(original_kw), text, re.IGNORECASE):
+                    # تأكد ألا تتداخل مع أي مطابقة تامة
+                    overlap = False
+                    for s, e, t in marked_spans:
+                        if not (m.end() <= s or m.start() >= e):
+                            overlap = True
+                            break
+                    if not overlap:
+                        marked_spans.append((m.start(), m.end(), "partial"))
 
-    for word in keywords:
-        norm_word = normalize_arabic_text(word)
-        for match in re.finditer(re.escape(norm_word), normalized_text, re.IGNORECASE):
-            start_norm = match.start()
-            end_norm = match.end()
-            if end_norm <= len(norm_to_orig_map):
-                start_orig = norm_to_orig_map[start_norm]
-                end_orig = norm_to_orig_map[end_norm - 1] + 1
-                if (start_orig, end_orig) not in used:
-                    highlights.append((start_orig, end_orig))
-                    used.add((start_orig, end_orig))
+    # دمج وتهيئة العلامات
+    if not marked_spans:
+        return text
+    # ترتيب حسب البداية
+    marked_spans.sort(key=lambda x: x[0])
 
-    highlights.sort()
     result = []
-    last_index = 0
-    for start, end in highlights:
-        result.append(text[last_index:start])
-        result.append(f'<mark>{text[start:end]}</mark>')
-        last_index = end
-    result.append(text[last_index:])
-    return ''.join(result)
-
+    last_idx = 0
+    for s, e, t in marked_spans:
+        if s < last_idx:
+            continue  # تجاوز التداخلات
+        # أضف ما قبل المطابقة
+        result.append(text[last_idx:s])
+        span_text = text[s:e]
+        if t == "exact":
+            result.append(f"<mark>{span_text}</mark>")  # برتقالي
+        else:
+            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")  # أصفر
+        last_idx = e
+    result.append(text[last_idx:])
+    return "".join(result)
 
 def export_results_to_word(results, filename="نتائج_البحث.docx"):
     from docx import Document
@@ -440,8 +448,7 @@ def run_main_app():
         if submitted:
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
-            kw_list_raw = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
-            kw_list = [standardize_word(k) for k in kw_list_raw]
+            kw_list = [k.strip() for k in keywords_form.split(",") if k.strip()] if keywords_form else []
             search_by_article = bool(article_number_input.strip())
             normalized_kw_list = [normalize_arabic_text(kw) for kw in kw_list] if kw_list else []
             norm_article = normalize_arabic_numbers(article_number_input.strip()) if search_by_article else ""
@@ -482,7 +489,7 @@ def run_main_app():
                                                 add_result = True
                                                 break
                                 if add_result:
-                                    highlighted = highlight_keywords(full_text, kw_list) if kw_list else full_text
+                                    highlighted = highlight_keywords(full_text, kw_list, normalized_keywords=normalized_kw_list, exact_match=exact_match) if kw_list else full_text
                                     results.append({
                                         "law": law_name,
                                         "num": last_article,
@@ -512,7 +519,7 @@ def run_main_app():
                                         add_result = True
                                         break
                         if add_result:
-                            highlighted = highlight_keywords(full_text, kw_list) if kw_list else full_text
+                            highlighted = highlight_keywords(full_text, kw_list, normalized_keywords=normalized_kw_list, exact_match=exact_match) if kw_list else full_text
                             results.append({
                                 "law": law_name,
                                 "num": last_article,
@@ -549,9 +556,7 @@ def run_main_app():
                 st.warning("لا توجد نتائج لتصديرها.")
             st.markdown("---")
             if results:
-                st.markdown('<div style="direction: rtl; text-align: right;">فلترة النتائج حسب القانون:</div>', unsafe_allow_html=True)
-                selected_law_filter = st.selectbox("", ["الكل"] + unique_laws, key="results_law_filter", label_visibility="collapsed")
-                filtered = results if selected_law_filter == "الكل" else [r for r in results if r["law"] == selected_law_filter]
+                
                 for i, r in enumerate(filtered):
                     with st.expander(f"📚 المادة ({r['num']}) من قانون {r['law']}", expanded=True):
                         st.markdown(f'''
