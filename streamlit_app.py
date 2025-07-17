@@ -94,7 +94,7 @@ def activate_app(code):
         return True
     return False
 
-def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
+def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False, pre_normalized_text=None):
     if not keywords:
         return text
     marked_spans = []
@@ -104,7 +104,7 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
         for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
             marked_spans.append((m.start(), m.end(), "exact"))
     if normalized_keywords:
-        normalized_text = normalize_arabic_text(text)
+        normalized_text = pre_normalized_text if pre_normalized_text else normalize_arabic_text(text)
         for i, norm_kw in enumerate(normalized_keywords):
             if not norm_kw:
                 continue
