@@ -9,13 +9,10 @@ import html
 import csv
 from io import BytesIO
 
-# ----------------------------------------------------
-# إعدادات الصفحة الأساسية
-# ----------------------------------------------------
 st.set_page_config(
     page_title="القوانين اليمنية بآخر تعديلاتها حتى عام 2025م",
     layout="wide",
-    initial_sidebar_state="collapsed"  # لإخفاء القائمة الجانبية عند بدء التطبيق
+    initial_sidebar_state="collapsed"
 )
 
 if "night_mode" not in st.session_state:
@@ -35,17 +32,17 @@ textarea, input[type="text"], .stTextArea textarea, .stTextInput input {
     text-align: right !important;
 }
 mark {
-    background: #ff9800 !important;  /* برتقالي للمطابقة الكلية */
+    background: #ff9800 !important;
     color: #fff !important;
 }
 mark.mark-soft {
-    background: #ffd600 !important;  /* أصفر للمطابقة الجزئية */
+    background: #ffd600 !important;
     color: #000 !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-TRIAL_DURATION = 3 * 24 * 60 * 60  # 3 أيام
+TRIAL_DURATION = 3 * 24 * 60 * 60
 TRIAL_USERS_FILE = "trial_users.txt"
 DEVICE_ID_FILE = "device_id.txt"
 ACTIVATED_FILE = "activated.txt"
@@ -98,24 +95,14 @@ def activate_app(code):
     return False
 
 def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=False):
-    """
-    تمييز الكلمات المطابقة تمامًا بعلامة <mark>
-    وتمييز الكلمات المطابقة جزئيًا (كلمة ضمن كلمة أخرى) بعلامة <mark class="mark-soft">
-    المطابقة الكلية: برتقالي - المطابقة الجزئية: أصفر
-    """
     if not keywords:
         return text
-
     marked_spans = []
-
-    # أولاً: المطابقات التامة
     for kw in keywords:
         if not kw:
             continue
         for m in re.finditer(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', text, re.IGNORECASE):
             marked_spans.append((m.start(), m.end(), "exact"))
-
-    # ثانيًا: المطابقات الجزئية (وليس التامة)
     if normalized_keywords:
         normalized_text = normalize_arabic_text(text)
         for i, norm_kw in enumerate(normalized_keywords):
@@ -131,28 +118,25 @@ def highlight_keywords(text, keywords, normalized_keywords=None, exact_match=Fal
                             break
                     if not overlap:
                         marked_spans.append((m.start(), m.end(), "partial"))
-
     if not marked_spans:
         return text
     marked_spans.sort(key=lambda x: x[0])
-
     result = []
     last_idx = 0
     for s, e, t in marked_spans:
         if s < last_idx:
-            continue  # تجاوز التداخلات
+            continue
         result.append(text[last_idx:s])
         span_text = text[s:e]
         if t == "exact":
-            result.append(f"<mark>{span_text}</mark>")  # برتقالي
+            result.append(f"<mark>{span_text}</mark>")
         else:
-            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")  # أصفر
+            result.append(f"<mark class=\"mark-soft\">{span_text}</mark>")
         last_idx = e
     result.append(text[last_idx:])
     return "".join(result)
 
 def export_results_to_word(results, filename="نتائج_البحث.docx"):
-    from docx import Document
     document = Document()
     document.add_heading('نتائج البحث في القوانين اليمنية', level=1)
     if not results:
@@ -245,9 +229,7 @@ def run_main_app():
                 """,
                 unsafe_allow_html=True,
             )
-
     tabs = st.tabs(["🔎 البحث في القوانين", "📄 عرض القانون الكامل"])
-
     with tabs[0]:
         if st.session_state.night_mode:
             st.markdown("""
@@ -327,7 +309,6 @@ def run_main_app():
             }
             </style>
             """, unsafe_allow_html=True)
-
         components.html("""
         <style>
         .scroll-btn {
@@ -383,16 +364,13 @@ def run_main_app():
         <button class='scroll-btn' id='scroll-top-btn' onclick='window.scrollTo({top: 0, behavior: "smooth"});'>⬆️</button>
         <button class='scroll-btn' id='scroll-bottom-btn' onclick='window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"});'>⬇️</button>
         """, height=1)
-
         if not os.path.exists(LAWS_DIR):
             st.error(f"⚠️ مجلد '{LAWS_DIR}/' غير موجود. يرجى التأكد من وجود ملفات القوانين.")
             return
-
         files = [f for f in os.listdir(LAWS_DIR) if f.endswith(".docx")]
         if not files:
             st.warning(f"📂 لا توجد ملفات قوانين في مجلد '{LAWS_DIR}/'.")
             return
-
         st.markdown("""
             <div style="direction: rtl; text-align: right;">
             <h3 style="display: flex; align-items: center; gap: 10px;">🔎 نموذج البحث</h3>
@@ -423,14 +401,10 @@ def run_main_app():
             search_btn_col = st.columns([1, 2, 12])
             with search_btn_col[2]:
                 submitted = st.form_submit_button("🔍 بدء البحث", use_container_width=True)
-            if submitted:
-                st.session_state.hide_trial = True
-
         if "results" not in st.session_state:
             st.session_state.results = []
         if "search_done" not in st.session_state:
             st.session_state.search_done = False
-
         if submitted:
             results = []
             search_files = files if selected_file_form == "الكل" else [selected_file_form]
@@ -438,7 +412,6 @@ def run_main_app():
             search_by_article = bool(article_number_input.strip())
             normalized_kw_list = [normalize_arabic_text(kw) for kw in kw_list] if kw_list else []
             norm_article = normalize_arabic_numbers(article_number_input.strip()) if search_by_article else ""
-
             with st.spinner("جاري البحث في القوانين... قد يستغرق الأمر بعض الوقت."):
                 for file in search_files:
                     try:
@@ -516,7 +489,6 @@ def run_main_app():
             st.session_state.search_done = True
             if not results:
                 st.info("لم يتم العثور على نتائج مطابقة للبحث.")
-
         if st.session_state.get("search_done", False) and st.session_state.results:
             st.markdown("<h2 style='text-align: center; color: #388E3C;'>نتائج البحث في القوانين 📚</h2>", unsafe_allow_html=True)
             st.markdown("---")
@@ -541,7 +513,6 @@ def run_main_app():
             else:
                 st.warning("لا توجد نتائج لتصديرها.")
             st.markdown("---")
-            # تم إزالة فلترة النتائج حسب القانون، جميع النتائج تظهر مباشرة!
             if results:
                 for i, r in enumerate(results):
                     with st.expander(f"📚 المادة ({r['num']}) من قانون {r['law']}", expanded=True):
@@ -626,7 +597,6 @@ def run_main_app():
                         """, height=60)
             else:
                 st.info("لا توجد نتائج لعرضها حاليًا. يرجى إجراء بحث جديد.")
-
     with tabs[1]:
         if not os.path.exists(LAWS_DIR):
             st.error(f"⚠️ مجلد '{LAWS_DIR}/' غير موجود. يرجى التأكد من وجود ملفات القوانين.")
@@ -646,8 +616,6 @@ def render_header():
         st.error("⚠️ ملف 'header.html' غير موجود في مجلد المشروع.")
 
 def main():
-    if "hide_trial" not in st.session_state:
-        st.session_state.hide_trial = False
     render_header()
     device_id = get_device_id()
     trial_start = get_trial_start(device_id)
@@ -662,9 +630,8 @@ def main():
             return
         else:
             st.error("❌ انتهت مدة التجربة المجانية لهذا الجهاز. يرجى تفعيل التطبيق للاستمرار في الاستخدام.")
-    
     with st.container(border=True):
-        if trial_start is None and not st.session_state.hide_trial:
+        if trial_start is None:
             if st.button("🚀 بدء النسخة المجانية", key="start_trial_button", use_container_width=True):
                 register_trial(device_id)
                 st.rerun()
